@@ -28,10 +28,10 @@ else()
     set(INTERCEPT_PLUGIN_NAME "${CMAKE_PROJECT_NAME}")
 endif()
 
-add_definitions(/DINTERCEPT_NO_THREAD_SAFETY)
+add_compile_definitions(INTERCEPT_NO_THREAD_SAFETY)
 
 if(USE_ENGINE_TYPES)
-    add_definitions(/DINTERCEPT_SQF_STRTYPE_RSTRING)
+    add_compile_definitions(INTERCEPT_SQF_STRTYPE_RSTRING)
 endif()
 
 file(GLOB INTERCEPT_HOST_SOURCES "${INTERCEPT_CLIENT_PATH}/intercept/client/*.cpp"  "${INTERCEPT_CLIENT_PATH}/intercept/client/sqf/*.cpp" "${INTERCEPT_CLIENT_PATH}/intercept/shared/*.cpp")
@@ -64,17 +64,12 @@ if(CMAKE_COMPILER_IS_GNUCXX)
 		"-s"
 		"-fPIC"
 		"-fpermissive"
-		"-static-libgcc"
-		"-static-libstdc++"
-		"-march=i686"
-		"-m32"
 		"-Wno-ignored-attributes"
-		"-static"
 		"$<$<CONFIG:Release>:-ffunction-sections>"
 		"$<$<CONFIG:Release>:-fdata-sections>"
 
 	)
-	target_link_options(${INTERCEPT_PLUGIN_NAME} PRIVATE "-m32" "-fPIC" "-static" "-static-libgcc" "-static-libstdc++"
+	target_link_options(${INTERCEPT_PLUGIN_NAME} PRIVATE "-fPIC" "-static-libgcc" "-static-libstdc++"
 	"$<$<CONFIG:Release>:-Wl,--gc-sections>"
 	"$<$<CONFIG:Release>:-Wl,--strip-all>"
 	) 
