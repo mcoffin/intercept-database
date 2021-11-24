@@ -8,6 +8,11 @@ project (intercept-database)
 #This setting enables the use of the engine string type instead of converting to std::string.
 #Enabling this results in better performance when handling strings to SQF commands.
 option(USE_ENGINE_TYPES "USE_ENGINE_TYPES" ON)
+option(USE_SOURCE_POSITION "USE_SOURCE_POSITION" ON)
+
+if (NOT ${USE_SOURCE_POSITION})
+	add_compile_definitions(NO_SOURCE_POSITION)
+endif()
 
 #----Don't change anything below this line
 
@@ -48,8 +53,10 @@ set(WITH_SSL "OFF" CACHE STRING "Disabled for now" FORCE)
 set(WITH_CURL OFF CACHE BOOL "not cuurl" FORCE)
 #TODO test with wolfssl
 
+set(CMAKE_CXX_STANDARD 17)
+
 if(CMAKE_COMPILER_IS_GNUCXX)
-	set(CMAKE_CXX_FLAGS "-std=c++1z -O2 -s -fPIC -fpermissive -static-libgcc -static-libstdc++")#-march=i686 -m32
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -fpermissive")
 	set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 	set(CMAKE_SHARED_LINKER_FLAGS "-shared -static-libgcc -static-libstdc++")
 else()

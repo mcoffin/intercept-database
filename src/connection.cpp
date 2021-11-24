@@ -116,7 +116,16 @@ GameDataDBAsyncResult* Connection::pushAsyncQuery(game_state& gs, mariadb::conne
         idx++;
     }
 
+#ifdef USE_SOURCE_POSITION
+    auto callstackPtr = &gs.get_vm_context()->callstack;
+    auto namePtr = &gs.get_vm_context()->name;
+    auto sourcePtr = &gs.get_vm_context()->sdoc;
+    auto sourcePosPtr = &gs.get_vm_context()->sdocpos;
+    auto source = gs.get_vm_context()->sdoc;
     auto sourcePos = gs.get_vm_context()->sdocpos;
+#else
+    std::optional<intercept::types::sourcedocpos> sourcePos;
+#endif
 
     if (Logger::get().isThreadLogEnabled()) Logger::get().logThread("pushTask "+queryString);
 

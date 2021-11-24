@@ -61,7 +61,7 @@ if(CMAKE_COMPILER_IS_GNUCXX)
 		${INTERCEPT_PLUGIN_NAME} PRIVATE 
 		"-std=c++1z"
 		"$<$<CONFIG:Release>:-O3>"
-		"-s"
+		"$<$<CONFIG:Release>:-s>"
 		"-fPIC"
 		"-fpermissive"
 		"-Wno-ignored-attributes"
