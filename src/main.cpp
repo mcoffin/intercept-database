@@ -25,6 +25,7 @@ void intercept::pre_start() {
 }
 
 void intercept::pre_init() {
+    sqf::diag_log(r_string("intercept-database: pre_init start"));
     try {
         Config::get().reloadConfig();
     }
@@ -41,6 +42,8 @@ void intercept::pre_init() {
         sqf::system_chat(r_string("Database config error ") + x.what());
     }
 
+    sqf::diag_log("intercept-database config has been loaded");
+    Config::get().dumpConfig();
     intercept::sqf::system_chat("Intercept database has been loaded");
 }
 void logMessageWithTime(std::string msg);

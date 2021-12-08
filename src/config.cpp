@@ -2,6 +2,7 @@
 #include <filesystem>
 #include "yaml-cpp/yaml.h"
 #include "logger.h"
+#include <intercept.hpp>
 
 
 namespace YAML {
@@ -177,4 +178,11 @@ void Config::initCommands() {
     handle_cmd_version = intercept::client::host::register_sqf_command("dbVersion", "TODO", [](game_state&) -> game_value {
                                 return "1.5";
                             }, game_data_type::STRING);
+}
+
+void Config::dumpConfig() {
+	using namespace intercept;
+	for (const auto& [k, v] : accounts) {
+		sqf::diag_log(k);
+	}
 }

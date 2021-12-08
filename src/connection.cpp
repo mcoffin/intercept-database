@@ -228,18 +228,23 @@ game_value Connection::cmd_createConnectionArray(game_state& gs, game_value_para
 }
 
 game_value Connection::cmd_createConnectionConfig(game_state& gs, game_value_parameter right) {
+    sqf::diag_log(r_string("createConnection[1]"));
     auto acc = Config::get().getAccount(right);
+    sqf::diag_log(r_string("createConnection[2]"));
     if (!acc) {
+        sqf::diag_log(r_string("createConnection: script error due to missing account"));
         gs.set_script_error(game_state::game_evaluator::evaluator_error_type::foreign,
             r_string("dbCreateConnection account \"")+static_cast<r_string>(right)+"\" not found in config");
         return {};
     }
 
-
+    sqf::diag_log(r_string("createConnection[3]"));
     auto newCon = new GameDataDBConnection();
 
+    sqf::diag_log(r_string("createConnection[4]"));
     newCon->session = mariadb::connection::create(acc);
 
+    sqf::diag_log(r_string("createConnection[5]"));
     return newCon;
 }
 
@@ -299,6 +304,7 @@ public:
 game_value Connection::cmd_execute(game_state& gs, game_value_parameter con, game_value_parameter qu) {
     auto session = con.get_as<GameDataDBConnection>()->session;
     auto query = qu.get_as<GameDataDBQuery>();
+    sqf::diag_log("dbExecute called");
 
     if (!gs.get_vm_context()->is_scheduled()) { //#TODO just keep using the callstack item but tell it to wait
 
@@ -380,6 +386,7 @@ __itt_string_handle* connection_cmd_executeAsync_task = __itt_string_handle_crea
 
 game_value Connection::cmd_executeAsync(game_state& gs, game_value_parameter con, game_value_parameter qu) {
     __itt_task_begin(domainConnection, __itt_null, __itt_null, connection_cmd_executeAsync);
+    sqf::diag_log("dbExecuteAsync called");
     auto session = con.get_as<GameDataDBConnection>()->session;
     auto query = qu.get_as<GameDataDBQuery>();
 

@@ -27,6 +27,7 @@ public:
 class Config : public intercept::singleton<Config> {
     
 public:
+    void dumpConfig();
     void reloadConfig();
 
     ConfigStatement getStatement(r_string name) {
