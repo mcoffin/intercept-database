@@ -2,6 +2,8 @@
 #include <mariadb++/result_set.hpp>
 #include "threading.h"
 #include "config.h"
+#include <iostream>
+#include <utility>
 
 using namespace intercept::client;
 
@@ -210,6 +212,32 @@ game_value Result::cmd_toArray(game_state&, game_value_parameter right) {
 	return result;
 }
 
+static std::optional<game_value> parse_simple_wrapped(game_state& state, const r_string& s) {
+    if (s.front() == '[') {
+        auto value = sqf::parse_simple_array(s);
+        if (state.get_evaluator()->_errorType == game_state::game_evaluator::evaluator_error_type::gen
+                || (!value.empty() && value.front().is_null())) {
+            state.get_evaluator()->_errorType == game_state::game_evaluator::evaluator_error_type::ok;
+            return std::nullopt;
+        } else {
+            return value;
+        }
+    } else {
+        auto toParse = r_string("["sv);
+        toParse += s;
+        toParse += "]"sv;
+        auto arrayValue = sqf::parse_simple_array(toParse);
+        if (state.get_evaluator()->_errorType == game_state::game_evaluator::evaluator_error_type::gen
+                || arrayValue.empty() 
+                || arrayValue.front().is_null()) {
+            state.get_evaluator()->_errorType = game_state::game_evaluator::evaluator_error_type::ok;
+            return std::nullopt;
+        } else {
+            return arrayValue.front();
+        }
+    }
+}
+
 game_value Result::cmd_toParsedArray(game_state& state, game_value_parameter right) {
     auto& gdRes = right.get_as<GameDataDBResult>();
     auto& res = gdRes->res;
@@ -301,6 +329,40 @@ game_value Result::cmd_toParsedArray(game_state& state, game_value_parameter rig
     return result;
 }
 
+template<typename T>
+static inline bool is_gd_type(const game_value& v) {
+    return dynamic_cast<T*>(v.data.get());
+}
+
+game_value Result::cmd_toExtDB3Array(game_state& gs, game_value_parameter right) {
+    if (right.size() < 2) {
+        gs.set_script_error(game_state::game_evaluator::evaluator_error_type::dim,
+                r_string("Not enough arguments provided, expected 5 but got "sv) + std::to_string(right.size()));
+    }
+    auto gdRes = right[0].get_as<GameDataDBResult>();
+    auto parseIndices = right[1].to_array();
+    auto res = cmd_toArray(gs, game_value(gdRes)).to_array();
+    r_string nullReplacer(""sv);
+    for (auto& rowValue : res) {
+        auto& unparsedRow = rowValue.to_array();
+        std::transform(unparsedRow.begin(), unparsedRow.end(), unparsedRow.begin(), [&nullReplacer](game_value v) -> game_value {
+            if (is_gd_type<GameDataDBNull>(v)) {
+                return nullReplacer;
+            } else {
+                return std::move(v);
+            }
+        });
+        for (auto& idxValue : parseIndices) {
+            auto idx = static_cast<int>(idxValue);
+            auto arrayValue = parse_simple_wrapped(gs, unparsedRow[idx]);
+            if (arrayValue) {
+                unparsedRow[idx] = std::move(arrayValue.value());
+            }
+        }
+    }
+    return res;
+}
+
 game_value Result::cmd_bindCallback(game_state&, game_value_parameter left, game_value_parameter right) {
     auto& res = left.get_as<GameDataDBAsyncResult>();
 
@@ -362,6 +424,7 @@ void Result::initCommands() {
     handle_cmd_lastInsertId = client::host::register_sqf_command("dbResultLastInsertId", "TODO", Result::cmd_lastInsertId, game_data_type::SCALAR, GameDataDBResult_typeE);
     handle_cmd_toArray = client::host::register_sqf_command("dbResultToArray", "TODO", Result::cmd_toArray, game_data_type::ARRAY, GameDataDBResult_typeE);
     handle_cmd_toParsedArray = client::host::register_sqf_command("dbResultToParsedArray", "TODO", Result::cmd_toParsedArray, game_data_type::ARRAY, GameDataDBResult_typeE);
+    handle_cmd_toExtDB3Array = client::host::register_sqf_command("dbResultToExtDB3Array", "TODO", Result::cmd_toExtDB3Array, game_data_type::ARRAY, game_data_type::ARRAY);
     handle_cmd_bindCallback = client::host::register_sqf_command("dbBindCallback", "TODO", Result::cmd_bindCallback, game_data_type::NOTHING, GameDataDBAsyncResult_typeE, game_data_type::ARRAY);
     handle_cmd_waitForResult = client::host::register_sqf_command("dbWaitForResult", "TODO", Result::cmd_waitForResult, GameDataDBResult_typeE, GameDataDBAsyncResult_typeE);
 
