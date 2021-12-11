@@ -346,7 +346,7 @@ game_value Result::cmd_toExtDB3Array(game_state& gs, game_value_parameter right)
     for (auto& rowValue : res) {
         auto& unparsedRow = rowValue.to_array();
         std::transform(unparsedRow.begin(), unparsedRow.end(), unparsedRow.begin(), [&nullReplacer](game_value v) -> game_value {
-            if (is_gd_type<GameDataDBNull>(v)) {
+            if (v.is_nil() || is_gd_type<GameDataDBNull>(v)) {
                 return nullReplacer;
             } else {
                 return std::move(v);
