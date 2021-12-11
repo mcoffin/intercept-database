@@ -17,6 +17,9 @@ class GameDataDBConnection : public game_data {
 
 public:
     GameDataDBConnection() {}
+    GameDataDBConnection(const mariadb::account_ref& acct) :
+        session(mariadb::connection::create(acct))
+    {}
     void lastRefDeleted() const override { delete this; }
     const sqf_script_type& type() const override { return Connection::GameDataDBConnection_type; }
     ~GameDataDBConnection() override {};
@@ -218,19 +221,12 @@ game_value Connection::cmd_createConnectionArray(game_state& gs, game_value_para
     r_string db = right[4];
 
     auto acc = mariadb::account::create(ip, user, pw, db, port);
-    
 
-    auto newCon = new GameDataDBConnection();
-
-    newCon->session = mariadb::connection::create(acc);
-
-    return newCon;
+    return new GameDataDBConnection(acc);
 }
 
 game_value Connection::cmd_createConnectionConfig(game_state& gs, game_value_parameter right) {
-    sqf::diag_log(r_string("createConnection[1]"));
     auto acc = Config::get().getAccount(right);
-    sqf::diag_log(r_string("createConnection[2]"));
     if (!acc) {
         sqf::diag_log(r_string("createConnection: script error due to missing account"));
         gs.set_script_error(game_state::game_evaluator::evaluator_error_type::foreign,
@@ -238,14 +234,7 @@ game_value Connection::cmd_createConnectionConfig(game_state& gs, game_value_par
         return {};
     }
 
-    sqf::diag_log(r_string("createConnection[3]"));
-    auto newCon = new GameDataDBConnection();
-
-    sqf::diag_log(r_string("createConnection[4]"));
-    newCon->session = mariadb::connection::create(acc);
-
-    sqf::diag_log(r_string("createConnection[5]"));
-    return newCon;
+    return new GameDataDBConnection(acc);
 }
 
 
