@@ -4,6 +4,7 @@
 #include "config.h"
 #include <iostream>
 #include <utility>
+#include <regex>
 
 using namespace intercept::client;
 
@@ -212,32 +213,6 @@ game_value Result::cmd_toArray(game_state&, game_value_parameter right) {
 	return result;
 }
 
-static std::optional<game_value> parse_simple_wrapped(game_state& state, const r_string& s) {
-    if (s.front() == '[') {
-        auto value = sqf::parse_simple_array(s);
-        if (state.get_evaluator()->_errorType == game_state::game_evaluator::evaluator_error_type::gen
-                || (!value.empty() && value.front().is_null())) {
-            state.get_evaluator()->_errorType == game_state::game_evaluator::evaluator_error_type::ok;
-            return std::nullopt;
-        } else {
-            return value;
-        }
-    } else {
-        auto toParse = r_string("["sv);
-        toParse += s;
-        toParse += "]"sv;
-        auto arrayValue = sqf::parse_simple_array(toParse);
-        if (state.get_evaluator()->_errorType == game_state::game_evaluator::evaluator_error_type::gen
-                || arrayValue.empty() 
-                || arrayValue.front().is_null()) {
-            state.get_evaluator()->_errorType = game_state::game_evaluator::evaluator_error_type::ok;
-            return std::nullopt;
-        } else {
-            return arrayValue.front();
-        }
-    }
-}
-
 game_value Result::cmd_toParsedArray(game_state& state, game_value_parameter right) {
     auto& gdRes = right.get_as<GameDataDBResult>();
     auto& res = gdRes->res;
@@ -334,6 +309,42 @@ static inline bool is_gd_type(const game_value& v) {
     return dynamic_cast<T*>(v.data.get());
 }
 
+static std::optional<game_value> parse_simple_wrapped(game_state& state, const r_string& s) {
+    std::regex number_pattern("^[0-9]+(\\.[0-9]+)?$");
+    auto first = s.front();
+    if (first == '[') {
+        auto value = sqf::parse_simple_array(s);
+        if (state.get_evaluator()->_errorType == game_state::game_evaluator::evaluator_error_type::gen
+                || (!value.empty() && value.front().is_null())) {
+            state.get_evaluator()->_errorType == game_state::game_evaluator::evaluator_error_type::ok;
+            return std::nullopt;
+        } else {
+            return value;
+        }
+    } else if (first == '\'' || first == '"') {
+        auto toParse = r_string("["sv);
+        toParse += s;
+        toParse += "]"sv;
+        auto arrayValue = sqf::parse_simple_array(toParse);
+        if (state.get_evaluator()->_errorType == game_state::game_evaluator::evaluator_error_type::gen
+                || arrayValue.empty() 
+                || arrayValue.front().is_null()) {
+            state.get_evaluator()->_errorType = game_state::game_evaluator::evaluator_error_type::ok;
+            return std::nullopt;
+        } else {
+            return arrayValue.front();
+        }
+    } else if (s == "true") {
+        return game_value(true);
+    } else if (s == "false") {
+        return game_value(false);
+    } else if (std::regex_match(s.c_str(), number_pattern)) {
+        return sqf::parse_number(s);
+    } else {
+        return s;
+    }
+}
+
 game_value Result::cmd_toExtDB3Array(game_state& gs, game_value_parameter right) {
     if (right.size() < 2) {
         gs.set_script_error(game_state::game_evaluator::evaluator_error_type::dim,
@@ -341,13 +352,13 @@ game_value Result::cmd_toExtDB3Array(game_state& gs, game_value_parameter right)
     }
     auto gdRes = right[0].get_as<GameDataDBResult>();
     auto parseIndices = right[1].to_array();
+    game_value null_replacer = right.get(3).value_or(r_string(""sv));
     auto res = cmd_toArray(gs, game_value(gdRes)).to_array();
-    r_string nullReplacer(""sv);
     for (auto& rowValue : res) {
         auto& unparsedRow = rowValue.to_array();
-        std::transform(unparsedRow.begin(), unparsedRow.end(), unparsedRow.begin(), [&nullReplacer](game_value v) -> game_value {
+        std::transform(unparsedRow.begin(), unparsedRow.end(), unparsedRow.begin(), [&null_replacer](game_value v) -> game_value {
             if (v.is_nil() || is_gd_type<GameDataDBNull>(v)) {
-                return nullReplacer;
+                return null_replacer;
             } else {
                 return std::move(v);
             }
