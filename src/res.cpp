@@ -345,6 +345,16 @@ static std::optional<game_value> parse_simple_wrapped(game_state& state, const r
     }
 }
 
+static void replace_nulls(auto_array<game_value>& arr, const game_value& replacer) {
+    std::transform(arr.begin(), arr.end(), arr.begin(), [replacer](game_value v) -> game_value {
+        if (v.is_nil() || is_gd_type<GameDataDBNull>(v)) {
+            return replacer;
+        } else {
+            return std::move(v);
+        }
+    });
+}
+
 game_value Result::cmd_toExtDB3Array(game_state& gs, game_value_parameter right) {
     if (right.size() < 2) {
         gs.set_script_error(game_state::game_evaluator::evaluator_error_type::dim,
@@ -356,13 +366,14 @@ game_value Result::cmd_toExtDB3Array(game_state& gs, game_value_parameter right)
     auto res = cmd_toArray(gs, game_value(gdRes)).to_array();
     for (auto& rowValue : res) {
         auto& unparsedRow = rowValue.to_array();
-        std::transform(unparsedRow.begin(), unparsedRow.end(), unparsedRow.begin(), [&null_replacer](game_value v) -> game_value {
-            if (v.is_nil() || is_gd_type<GameDataDBNull>(v)) {
-                return null_replacer;
-            } else {
-                return std::move(v);
-            }
-        });
+        replace_nulls(unparsedRow, null_replacer);
+        // std::transform(unparsedRow.begin(), unparsedRow.end(), unparsedRow.begin(), [&null_replacer](game_value v) -> game_value {
+        //     if (v.is_nil() || is_gd_type<GameDataDBNull>(v)) {
+        //         return null_replacer;
+        //     } else {
+        //         return std::move(v);
+        //     }
+        // });
         for (auto& idxValue : parseIndices) {
             auto idx = static_cast<int>(idxValue);
             auto arrayValue = parse_simple_wrapped(gs, unparsedRow[idx]);
@@ -372,6 +383,14 @@ game_value Result::cmd_toExtDB3Array(game_state& gs, game_value_parameter right)
         }
     }
     return res;
+}
+
+game_value Result::cmd_replaceNull(game_state& gs, game_value_parameter left, game_value_parameter right) {
+    auto arr = left.to_array();
+    for (auto& row : arr) {
+        replace_nulls(row.to_array(), right);
+    }
+    return {};
 }
 
 game_value Result::cmd_bindCallback(game_state&, game_value_parameter left, game_value_parameter right) {
@@ -436,6 +455,7 @@ void Result::initCommands() {
     handle_cmd_toArray = client::host::register_sqf_command("dbResultToArray", "TODO", Result::cmd_toArray, game_data_type::ARRAY, GameDataDBResult_typeE);
     handle_cmd_toParsedArray = client::host::register_sqf_command("dbResultToParsedArray", "TODO", Result::cmd_toParsedArray, game_data_type::ARRAY, GameDataDBResult_typeE);
     handle_cmd_toExtDB3Array = client::host::register_sqf_command("dbResultToExtDB3Array", "TODO", Result::cmd_toExtDB3Array, game_data_type::ARRAY, game_data_type::ARRAY);
+    handle_cmd_replaceNull = client::host::register_sqf_command("dbArrayReplaceNull", "TODO", Result::cmd_replaceNull, game_data_type::NOTHING, game_data_type::ARRAY, game_data_type::ANY);
     handle_cmd_bindCallback = client::host::register_sqf_command("dbBindCallback", "TODO", Result::cmd_bindCallback, game_data_type::NOTHING, GameDataDBAsyncResult_typeE, game_data_type::ARRAY);
     handle_cmd_waitForResult = client::host::register_sqf_command("dbWaitForResult", "TODO", Result::cmd_waitForResult, GameDataDBResult_typeE, GameDataDBAsyncResult_typeE);
 

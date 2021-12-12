@@ -14,6 +14,7 @@ public:
     static game_value cmd_toArray(game_state&, game_value_parameter right);
     static game_value cmd_toParsedArray(game_state&, game_value_parameter right);
     static game_value cmd_toExtDB3Array(game_state&, game_value_parameter right);
+    static game_value cmd_replaceNull(game_state&, game_value_parameter left, game_value_parameter right);
     static game_value cmd_bindCallback(game_state&, game_value_parameter left, game_value_parameter right);
     static game_value cmd_waitForResult(game_state&, game_value_parameter right);
 
@@ -30,6 +31,7 @@ public:
     static inline types::registered_sqf_function handle_cmd_toArray;
     static inline types::registered_sqf_function handle_cmd_toParsedArray;
     static inline types::registered_sqf_function handle_cmd_toExtDB3Array;
+    static inline types::registered_sqf_function handle_cmd_replaceNull;
     static inline types::registered_sqf_function handle_cmd_bindCallback;
     static inline types::registered_sqf_function handle_cmd_waitForResult;
 };
