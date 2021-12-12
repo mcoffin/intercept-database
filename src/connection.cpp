@@ -293,7 +293,6 @@ public:
 game_value Connection::cmd_execute(game_state& gs, game_value_parameter con, game_value_parameter qu) {
     auto session = con.get_as<GameDataDBConnection>()->session;
     auto query = qu.get_as<GameDataDBQuery>();
-    sqf::diag_log("dbExecute called");
 
     if (!gs.get_vm_context()->is_scheduled()) { //#TODO just keep using the callstack item but tell it to wait
 
@@ -375,7 +374,6 @@ __itt_string_handle* connection_cmd_executeAsync_task = __itt_string_handle_crea
 
 game_value Connection::cmd_executeAsync(game_state& gs, game_value_parameter con, game_value_parameter qu) {
     __itt_task_begin(domainConnection, __itt_null, __itt_null, connection_cmd_executeAsync);
-    sqf::diag_log("dbExecuteAsync called");
     auto session = con.get_as<GameDataDBConnection>()->session;
     auto query = qu.get_as<GameDataDBQuery>();
 
