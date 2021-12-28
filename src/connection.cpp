@@ -6,6 +6,7 @@
 #include "threading.h"
 #include "ittnotify.h"
 #include <fstream>
+#include <sstream>
 #include "logger.h"
 
 __itt_domain* domainConnection = __itt_domain_create("connection");
@@ -67,12 +68,18 @@ game_data* createGameDataDBConnection(param_archive* ar) {
     return x;
 }
 
+static bool is_bool_and(const game_value& v) {
+    if (v.is_nil() || v.type_enum() != game_data_type::BOOL) {
+        return false;
+    }
+    return static_cast<bool>(v);
+}
+
 bool Connection::throwQueryError(game_state& gs, mariadb::connection_ref connection, size_t errorID, r_string errorMessage, r_string queryString, std::optional<sourcedocpos> sourcePosition) {
     if (connection->account()->hasErrorHandler()) {
         for (auto& it : connection->account()->getErrorHandlers()) {
             auto res = sqf::call(it, { errorMessage, errorID, queryString });
-
-            if (res.type_enum() == game_data_type::BOOL && static_cast<bool>(res)) return true; //error was handled
+            return is_bool_and(res);
         }
     }
     auto exText = r_string("Intercept-DB exception: ") + errorMessage + "\nat\n" + queryString;
@@ -84,6 +91,14 @@ bool Connection::throwQueryError(game_state& gs, mariadb::connection_ref connect
             exText);
     return false; //error was not handled and we threw it
 }
+
+template<class T>
+class resolved_promise : public std::promise<T> {
+public:
+    inline resolved_promise(T value) {
+        set_value(value);
+    }
+};
 
 GameDataDBAsyncResult* Connection::pushAsyncQuery(game_state& gs, mariadb::connection_ref connection, ref<GameDataDBQuery> query) {
     auto gd_res = new GameDataDBAsyncResult();
@@ -111,23 +126,27 @@ GameDataDBAsyncResult* Connection::pushAsyncQuery(game_state& gs, mariadb::conne
             case game_data_type::STRING: boundValuesQuery.emplace_back(static_cast<r_string>(it)); break;
             case game_data_type::ARRAY: boundValuesQuery.emplace_back(static_cast<r_string>(it)); break;
             default:
-                throwQueryError(gs, connection, 3,
-                    r_string("Unsupported bind value type. Got "sv) + intercept::types::__internal::to_string(it.type_enum()) + " on index "sv + std::to_string(idx)
-                    + " with value " + static_cast<r_string>(it)
-                    , query->getQueryString());
+                std::stringstream msg;
+                msg << "Unsupported bind value type. Got " << intercept::types::__internal::to_string(it.type_enum()) << " on index " << std::to_string(idx);
+                throwQueryError(gs, connection, 3, r_string(msg.str()), query->getQueryString());
+                //std::promise<bool> prom;
+                //auto resFut = prom.get_future();
+                resolved_promise<bool> prom(false);
+                gd_res->data->fut = prom.get_future();
+                return gd_res;
         }
         idx++;
     }
 
-#ifdef USE_SOURCE_POSITION
+#ifdef NO_SOURCE_POSITION
+    std::optional<intercept::types::sourcedocpos> sourcePos(std::nullopt);
+#else
     // auto callstackPtr = &gs.get_vm_context()->callstack;
     // auto namePtr = &gs.get_vm_context()->name;
     // auto sourcePtr = &gs.get_vm_context()->sdoc;
     // auto sourcePosPtr = &gs.get_vm_context()->sdocpos;
     // auto source = gs.get_vm_context()->sdoc;
     auto sourcePos = gs.get_vm_context()->sdocpos;
-#else
-    std::optional<intercept::types::sourcedocpos> sourcePos(std::nullopt);
 #endif
 
     if (Logger::get().isThreadLogEnabled()) Logger::get().logThread("pushTask "+queryString);
@@ -194,6 +213,9 @@ GameDataDBAsyncResult* Connection::pushAsyncQuery(game_state& gs, mariadb::conne
             result->res = statement->query();
             return true;
         }
+#ifdef NO_SOURCE_POSITION
+#define sourcePos std::nullopt
+#endif
         catch (mariadb::exception::connection& x) {
             invoker_lock l;
             throwQueryError(gs, con, static_cast<size_t>(x.error_id()), static_cast<r_string>(x.what()), queryString, sourcePos);
@@ -204,6 +226,9 @@ GameDataDBAsyncResult* Connection::pushAsyncQuery(game_state& gs, mariadb::conne
             throwQueryError(gs, con, 1337, static_cast<r_string>(x.what()), queryString, sourcePos);
             return false;
         }
+#ifdef NO_SOURCE_POSITION
+#undef sourcePos
+#endif
     }, true);
     return gd_res;
 }
@@ -245,13 +270,24 @@ public:
     callstack_item_WaitForQueryResult(ref<GameDataDBAsyncResult> inp, bool scheduled = true) : res(inp), scheduled(scheduled){
     }
 
-    const char* getName() const override { return "stuff"; };
+    callstack_item_WaitForQueryResult(ref<GameDataDBAsyncResult> inp, ref<vm_context::callstack_item>& parent, size_t stackStart, bool scheduled = true) : res(inp), scheduled(scheduled) {
+        setParent(parent);
+        setStackDelta(static_cast<int>(stackStart), 1);
+    }
+
+    const char* getName() const override { return "idb_wait"; };
     int varCount() const override { return 0; };
     int getVariables(const IDebugVariable** storage, int count) const override { return 0; };
     types::__internal::I_debug_value::RefType EvaluateExpression(const char* code, unsigned rad) override { return {}; };
-    void getSourceDocPosition(char* file, int fileSize, int& line) override {};
+    void getSourceDocPosition(char* file, int fileSize, int& line) override {
+        if (file && fileSize > 0) {
+            // strncpy(file, "idb_waitforqueryresult.native", static_cast<size_t>(fileSize));
+            file[0] = '\0';
+        }
+        line = 0;
+    };
     IDebugScope* getParent() override { return nullptr; };
-    r_string get_type() const override { return "stuff"sv; }
+    r_string get_type() const override { return "idb_wait"sv; }
 
 
 
@@ -285,6 +321,16 @@ public:
     void on_before_exec() override {
         
     };
+
+    inline void setParent(ref<vm_context::callstack_item>& newParent) {
+        _parent = newParent;
+        _varSpace.parent = &newParent->_varSpace;
+    }
+
+    inline void setStackDelta(int start, int delta) {
+        _stackEndAtStart = start;
+        _stackEndAtStart = start + delta;
+    }
 
     ref<GameDataDBAsyncResult> res;
     bool scheduled;
@@ -323,6 +369,7 @@ game_value Connection::cmd_execute(game_state& gs, game_value_parameter con, gam
                             r_string("Unsupported bind value type. Got "sv) + intercept::types::__internal::to_string(it.type_enum()) + " on index "sv + std::to_string(idx)
                             + " with value " + static_cast<r_string>(it)
                             ,query->getQueryString());
+                        return {};
                 }
             }
 
@@ -360,11 +407,7 @@ game_value Connection::cmd_execute(game_state& gs, game_value_parameter con, gam
 
     auto gd_res = pushAsyncQuery(gs, session, query);
 
-    auto newItem = new callstack_item_WaitForQueryResult(gd_res);
-    newItem->_parent = cs.back();
-    newItem->_stackEndAtStart = gs.get_vm_context()->scriptStack.size()-2;
-    newItem->_stackEnd = newItem->_stackEndAtStart+1;
-    newItem->_varSpace.parent = &cs.back()->_varSpace;
+    auto newItem = new callstack_item_WaitForQueryResult(gd_res, cs.back(), gs.get_vm_context()->scriptStack.size() - 2);
     cs.emplace_back(newItem);
     return 123;
 }
@@ -488,11 +531,7 @@ game_value Connection::cmd_loadSchema(game_state& gs, game_value_parameter con, 
         }
     });
 
-    auto newItem = new callstack_item_WaitForQueryResult(gd_res);
-    newItem->_parent = cs.back();
-    newItem->_stackEndAtStart = gs.get_vm_context()->scriptStack.size() - 2;
-    newItem->_stackEnd = newItem->_stackEndAtStart + 1;
-    newItem->_varSpace.parent = &cs.back()->_varSpace;
+    auto newItem = new callstack_item_WaitForQueryResult(gd_res, cs.back(), gs.get_vm_context()->scriptStack.size() - 2);
     cs.emplace_back(newItem);
     return {};
 }
