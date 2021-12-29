@@ -3,7 +3,7 @@
 	url = https://github.com/intercept/intercept.git
 [submodule "mariadbpp"]
 	path = mariadbpp
-	url = https://github.com/dedmen/mariadbpp
+	url = https://github.com/mcoffin/mariadbpp.git
     branch = intercept
 [submodule "wolfssl"]
 	path = wolfssl
