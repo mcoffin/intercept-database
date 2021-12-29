@@ -1,10 +1,6 @@
 [submodule "intercept"]
 	path = intercept
 	url = https://github.com/intercept/intercept.git
-[submodule "mariadb-connector-c"]
-	path = mariadb-connector-c
-	url = https://github.com/dedmen/mariadb-connector-c.git
-    branch = intercept_3_2
 [submodule "mariadbpp"]
 	path = mariadbpp
 	url = https://github.com/dedmen/mariadbpp
@@ -16,3 +12,7 @@
 	path = yaml-cpp
 	url = https://github.com/dedmen/yaml-cpp.git
     branch = intercept
+[submodule "mariadb-connector-c"]
+	path = mariadb-connector-c
+	url = git://github.com/mariadb-corporation/mariadb-connector-c.git
+	branch = 3.2

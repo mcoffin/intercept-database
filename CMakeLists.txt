@@ -75,6 +75,7 @@ SET(MSVC_SHARED_RT OFF CACHE BOOL "want static" FORCE)
 
 add_subdirectory(yaml-cpp)
 
+set(INSTALL_PLUGINDIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/mysql/plugin")
 add_subdirectory(mariadb-connector-c)
 
 CONFIGURE_FILE("${CMAKE_CURRENT_BINARY_DIR}/mariadb-connector-c/include/mariadb_version.h"
