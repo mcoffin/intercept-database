@@ -1,6 +1,7 @@
 [submodule "intercept"]
 	path = intercept
-	url = https://github.com/intercept/intercept.git
+	url = https://github.com/mcoffin/intercept.git
+	branch = mcoffin
 [submodule "mariadbpp"]
 	path = mariadbpp
 	url = https://github.com/mcoffin/mariadbpp.git
