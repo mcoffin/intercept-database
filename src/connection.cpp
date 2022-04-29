@@ -329,18 +329,92 @@ public:
 
     inline void setStackDelta(int start, int delta) {
         _stackEndAtStart = start;
-        _stackEndAtStart = start + delta;
+        _stackEnd = _stackEndAtStart + delta;
     }
 
     ref<GameDataDBAsyncResult> res;
     bool scheduled;
 };
 
+using namespace intercept::types;
+
+class sourcedoc_fake : public serialize_class {  //See ArmaDebugEngine for more info on this
+public:
+	sourcedoc_fake():
+		sourcefile(""sv),
+		content(""sv)
+	{
+	}
+	r_string sourcefile;
+	r_string content;
+
+	serialization_return serialize(param_archive& ar) override {
+	    return serialization_return::unknown_error;
+	}
+};
+
+struct vm_context_info {
+	auto_array<ref<vm_context::callstack_item>, rv_allocator_local<ref<vm_context::callstack_item>, 64>> callstack;  //#TODO check size on x64
+	bool serialenabled;                                                                      //disableSerialization -> true, 0x228
+	void* dummyu;                                                                            //VMContextBattlEyeMonitor : VMContextCallback
+	
+	//const bool is_ui_context; //no touchy
+	auto_array<game_value, rv_allocator_local<game_value, 32>> scriptStack;
+	
+	sourcedoc_fake sdoc;
+	// std::pair<r_string, r_string> sdoc;
+	
+	sourcedocpos sdocpos;  //last instruction pos
+	
+	r_string name;  //profiler might like this
+	
+	//breakOut
+	r_string breakscopename;
+	//throw
+	game_value exception_value;  //0x4B0
+	//breakOut
+	game_value breakvalue;
+	uint32_t d[3];
+	bool dumm;
+	bool dumm2;             //undefined variables allowed?
+	const bool scheduled;   //canSuspend 0x4D6
+	bool local;
+	bool doNil; //undefined variable will be set to nil (unscheduled). If this is false it will throw error
+	//throw
+	bool exception_state;   //0x4D9
+	bool break_;            //0x4DA
+	bool breakout;
+
+	inline bool is_scheduled() const {
+		return scheduled;
+	}
+};
+template<typename A, typename B>
+struct sizes {
+	sizes():
+		first(sizeof(A)),
+		second(sizeof(B))
+	{}
+	size_t first;
+	size_t second;
+
+	operator std::pair<size_t, size_t>() const {
+		return { first, second };
+	}
+};
+
+static inline vm_context_info* context_info(vm_context* ctx) {
+	return reinterpret_cast<vm_context_info*>(&ctx->callstack);
+}
+
 game_value Connection::cmd_execute(game_state& gs, game_value_parameter con, game_value_parameter qu) {
     auto session = con.get_as<GameDataDBConnection>()->session;
     auto query = qu.get_as<GameDataDBQuery>();
 
-    if (!gs.get_vm_context()->is_scheduled()) { //#TODO just keep using the callstack item but tell it to wait
+    sizes<sourcedoc, sourcedoc_fake> sourcedoc_sizes;
+    sizes<vm_context, vm_context_info> vm_context_sizes;
+    auto info = context_info(gs.get_vm_context());
+    if (!info->is_scheduled()) { //#TODO just keep using the callstack item but tell it to wait
 
         try {
             auto statement = session->create_statement(query->getQueryString());

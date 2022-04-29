@@ -90,3 +90,6 @@ include_directories(AFTER "${PROJECT_SOURCE_DIR}/mariadb-connector-c/include")
 include_directories(AFTER "${PROJECT_SOURCE_DIR}/ittnotify")
 
 add_subdirectory(src)
+
+# build intercept itself too
+add_subdirectory(intercept)
