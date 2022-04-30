@@ -322,11 +322,19 @@ public:
     bool scheduled;
 };
 
+static bool is_scheduled(game_state& gs) {
+#ifdef NO_SQF_SCHEDULED
+    return gs.get_vm_context()->is_scheduled();
+#else
+    return sqf::can_suspend();
+#endif
+}
+
 game_value Connection::cmd_execute(game_state& gs, game_value_parameter con, game_value_parameter qu) {
     auto session = con.get_as<GameDataDBConnection>()->session;
     auto query = qu.get_as<GameDataDBQuery>();
 
-    if (!gs.get_vm_context()->is_scheduled()) { //#TODO just keep using the callstack item but tell it to wait
+    if (!is_scheduled(gs)) { //#TODO just keep using the callstack item but tell it to wait
 
         try {
             auto statement = session->create_statement(query->getQueryString());
@@ -471,7 +479,7 @@ game_value Connection::cmd_loadSchema(game_state& gs, game_value_parameter con, 
     t.close();
 
 
-    if (!gs.get_vm_context()->is_scheduled()) { 
+    if (!is_scheduled(gs)) { 
         try {
             return static_cast<float>(session->execute(static_cast<r_string>(str)));
         }

@@ -9,9 +9,18 @@ project (intercept-database)
 #Enabling this results in better performance when handling strings to SQF commands.
 option(USE_ENGINE_TYPES "USE_ENGINE_TYPES" ON)
 option(USE_SOURCE_POSITION "USE_SOURCE_POSITION" ON)
+if (UNIX)
+	option(USE_SQF_SCHEDULED "USE_SQF_SCHEDULED" OFF)
+else()
+	option(USE_SQF_SCHEDULED "USE_SQF_SCHEDULED" ON)
+endif()
 
 if (NOT ${USE_SOURCE_POSITION})
 	add_compile_definitions(NO_SOURCE_POSITION)
+endif()
+
+if (NOT ${USE_SQF_SCHEDULED})
+	add_compile_definitions(NO_SQF_SCHEDULED)
 endif()
 
 #----Don't change anything below this line
