@@ -8,6 +8,7 @@
 #include <fstream>
 #include <sstream>
 #include "logger.h"
+#include "callstack_item.h"
 
 __itt_domain* domainConnection = __itt_domain_create("connection");
 
@@ -96,7 +97,7 @@ template<class T>
 class resolved_promise : public std::promise<T> {
 public:
     inline resolved_promise(T value) {
-        set_value(value);
+        this->set_value(value);
     }
 };
 
@@ -262,17 +263,15 @@ game_value Connection::cmd_createConnectionConfig(game_state& gs, game_value_par
     return new GameDataDBConnection(acc);
 }
 
-
-class callstack_item_WaitForQueryResult : public vm_context::callstack_item {
-
+class callstack_item_WaitForQueryResult : public intercept_db::callstack_item {
 public:
-
-    callstack_item_WaitForQueryResult(ref<GameDataDBAsyncResult> inp, bool scheduled = true) : res(inp), scheduled(scheduled){
-    }
-
-    callstack_item_WaitForQueryResult(ref<GameDataDBAsyncResult> inp, ref<vm_context::callstack_item>& parent, size_t stackStart, bool scheduled = true) : res(inp), scheduled(scheduled) {
-        setParent(parent);
-        setStackDelta(static_cast<int>(stackStart), 1);
+    callstack_item_WaitForQueryResult(ref<GameDataDBAsyncResult> inp, vm_context::callstack_item* parent, size_t stackStart, bool scheduled = true):
+        res(inp),
+        scheduled(scheduled),
+        intercept_db::callstack_item(parent)
+    {
+        _stackEndAtStart = stackStart;
+        _stackEnd = stackStart + 1;
     }
 
     const char* getName() const override { return "idb_wait"; };
@@ -288,9 +287,6 @@ public:
     };
     IDebugScope* getParent() override { return nullptr; };
     r_string get_type() const override { return "idb_wait"sv; }
-
-
-
 
     game_instruction* next(int& d1, const game_state* s) override {
         if (res->data->fut.wait_for(std::chrono::nanoseconds(0)) == std::future_status::ready) {
@@ -321,16 +317,6 @@ public:
     void on_before_exec() override {
         
     };
-
-    inline void setParent(ref<vm_context::callstack_item>& newParent) {
-        _parent = newParent;
-        _varSpace.parent = &newParent->_varSpace;
-    }
-
-    inline void setStackDelta(int start, int delta) {
-        _stackEndAtStart = start;
-        _stackEndAtStart = start + delta;
-    }
 
     ref<GameDataDBAsyncResult> res;
     bool scheduled;
